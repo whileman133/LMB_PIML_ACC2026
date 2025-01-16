@@ -1,0 +1,31 @@
+% makeDriveCycles.m
+
+clear; close all; clc;
+addpath('..');
+TB.addpaths;
+
+data = load('UDDS_25degC_LGHG2.mat','meas');
+meas = data.meas;
+time1 = meas.Time(1:end-1);
+iapp1 = -meas.Current(1:end-1);
+time2 = min(time1):1:max(time1);
+iapp2 = interp1(time1,iapp1,time2','linear');
+time3 = time2;
+iapp3 = iapp2/max(iapp2);
+
+cycle.time = time3;
+cycle.iapp = iapp3;
+save('UDDS.mat','cycle');
+
+figure;
+stairs(time1,iapp1); hold on;
+stairs(time2,iapp2);
+xlabel('Time, t [s]');
+ylabel('Applied Current, i_{app} [A]');
+thesisFormat;
+
+figure;
+stairs(time3,iapp3);
+xlabel('Time, t [s]');
+ylabel('Applied Current, i_{app} [A]');
+thesisFormat;

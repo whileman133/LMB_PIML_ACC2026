@@ -1,0 +1,49 @@
+function modelVect = splittemps(model,modelspec)
+%SPLITTEMPS Create model structures of multiplicty=1 at each temperature.
+
+temps = modelspec.temps;
+ntemps = modelspec.ntemps;
+Tref = modelspec.Tref;
+R = TB.const.R;
+
+% Flatten model.
+model = fastopt.flattenstruct(model);
+
+% Pre-allocate flat models.
+flatmodels = [];
+for m = ntemps:-1:1
+    flatmodels(m) = model;
+end
+
+% Compute parameter values at each temperature.
+paramnames = fieldnames(metadata.params);
+for k = 1:length(paramnames)
+    paramname = paramnames{k};
+    meta = metadata.params.(paramname);
+    value = model.(paramname);
+
+    if strcmpi(meta.tempfcn,'fix')
+        % Same value at all temperatures.
+        for m = ntemps:-1:1
+            flatmodels(m).(paramname) = value;
+        end
+    elseif strcmpi(meta.tempfcn,'lut')
+        % Lookup table.
+        for m = ntemps:-1:1
+            flatmodels(m).(paramname) = value(:,m);
+        end
+    elseif strcmpi(meta.tempfcn,'Eact')
+        % Ahrrenius relation.
+        paramnameEact = [paramname 'Eact'];
+        Eact = model.(paramnameEact);
+        for m = ntemps:-1:1
+            psi0 = value;
+            psi = psi0.*log((Eact/R))
+            flatmodels(m).(paramname) = value.*log((Eact/R)*(1/Tref-));
+        end
+    else
+        error('Unrecognized temperature function: %s',meta.tempfcn);
+    end % if
+end % for
+
+end
