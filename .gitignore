@@ -1,5 +1,6 @@
-venv
-plots
+venv/
+plots/
 archive
-datasets
-.idea
+datasets/
+.idea/
+__pycache__/
