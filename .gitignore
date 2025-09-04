@@ -1,5 +1,6 @@
 venv/
 plots/
+plots_sr/
 archive
 datasets/
 .idea/
