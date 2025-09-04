@@ -8,38 +8,14 @@ PyBaMM partial-differential-equation (PDE) model for LMB cell.
 
 import numpy as np
 import pybamm
+from .base import BaseLumpedModel
 
 
-class _Container:
-    """
-    Generic container class for parameters and variables.
-    """
-
-    def __getattribute__(self, item):
-        try:
-            return super().__getattribute__(item)
-        except AttributeError:
-            raise AttributeError(f"Cannot find {item} in model.")
-
-    def __setattr__(self, key, value):
-        return super().__setattr__(key, value)
-
-
-class BaseLumpedModel(pybamm.BaseModel):
-    """
-    Base class for lumped-parameter models.
-    """
-
-    def __init__(self, name="Unnamed lumped-parameter model"):
-        super().__init__(name)
-        self.param = _Container()    # model parameters
-        self.var = _Container()      # model variables
-
-
-class LumpedModel(BaseLumpedModel):
+class LumpedLMBModel(BaseLumpedModel):
     """
     Model for a lithium-metal battery cell with eff and pos layers.
-    Lumped parameters. Dimensionless geometry.
+    Lumped parameters. Dimensionless geometry. MSMR OCP and kinetics.
+    Stoichiometry-dependent Ds.
 
     NOTE 1: For simplicity, we set the potential reference point to the electrolyte at the surface
             of the Li-metal electrode, i.e., we define phi_e(0) = 0V. This makes phi_s_neg(0) nonzero,

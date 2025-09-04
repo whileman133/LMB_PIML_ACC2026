@@ -28,6 +28,10 @@ if __name__ == '__main__':
         'thetass': util.ThetassFNNAdapter(tau, ts),
         'phie': util.PhieFNNAdapter(tau, ts),
         'if': util.IfFNNAdapter(tau, ts),
+        # FNNs to be trained without single-pole filter output.
+        'thetass_without_delta': util.ThetassFNNAdapter(tau, ts, include_delta=False),
+        'phie_without_delta': util.PhieFNNAdapter(tau, ts, include_delta=False),
+        'if_without_delta': util.IfFNNAdapter(tau, ts, include_delta=False),
     }
 
     # Prepare training data --------------------------------------------------------------------------------------------
@@ -91,7 +95,7 @@ if __name__ == '__main__':
             'norm': norm,
         }
 
-    # Save simulation data to file.
+    # Save simulation data to a file.
     data['tau'] = tau
     data['fnn_adapter_dict'] = fnn_adapter_dict
     with open(os.path.join('datasets', 'TrainTest_25degC.pickle'), "wb") as f:

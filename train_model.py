@@ -25,8 +25,8 @@ if __name__ == "__main__":
         n_output = Y_train.shape[-1]
 
         # Build model.
-        n_hidden_nodes = 32 if fnn_label == 'thetass' else 128
-        n_layers = 3 if fnn_label == 'thetas' else 5
+        n_hidden_nodes = 32 if fnn_label.startswith('thetass') else 128
+        n_layers = 3 if fnn_label.startswith('thetas') else 5
         model = Sequential(name='FNN')
         model.add(Input(shape=(n_input,), name='input'))
         for k in range(n_layers):

@@ -8,16 +8,16 @@ Utilities for working with LMB cell models.
 
 import math
 import os
-from abc import ABC
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import pybamm
 import numpy as np
 import scipy.io as sio
 from scipy.optimize import fsolve
-from scipy.interpolate import PchipInterpolator, CubicSpline
+from scipy.interpolate import PchipInterpolator
 
-import lmbcell
+from lumped import lmbcell
 
 
 #
@@ -221,7 +221,7 @@ def sim_profile(
     pos_Uocp0 = get_ocp(cell, soc0, TdegC)
 
     # Construct PyBaMM model.
-    pde_model = lmbcell.LumpedModel(J=J)
+    pde_model = lmbcell.LumpedLMBModel(J=J)
 
     # Collect parameter values.
     param = get_param_values(cell)
@@ -580,7 +580,7 @@ class MuSigmaNormalizer:
 
 def iir_1p(X: np.ndarray, tau: float, ts: float):
     """
-    Compute response of single-parameter discrete-time IIR filter.
+    Compute response of a single-parameter discrete-time IIR filter.
     :param X: Input vector.
     :param tau: Time constant [s].
     :param ts: Sampling interval [s].
@@ -597,7 +597,7 @@ def iir_1p(X: np.ndarray, tau: float, ts: float):
 
 def iir_2p(X: np.ndarray, a: float, b: float):
     """
-    Compute response of two-parameter discrete-time IIR filter.
+    Compute response of a two-parameter discrete-time IIR filter.
     :param X: Input vector.
     :param tau: Time constant [s].
     :param ts: Sampling interval [s].
@@ -626,16 +626,36 @@ def sim_specs(series_key, sim_data):
 
 
 class BaseFNNAdapter(ABC):
+    def __init__(self, tau, ts, include_delta=True):
+        self.tau = tau
+        self.ts = ts
+        self.include_delta = include_delta
+
+    @abstractmethod
     def pack_x(self, *args, **kwargs):
         pass
 
+    @abstractmethod
     def pack_y(self, *args, **kwargs):
         pass
 
+    @abstractmethod
     def unpack_y(self, *args, **kwargs):
         pass
 
     def wrap(self, fn, *args, **kwargs):
+        """
+        Wraps a given function with additional functionality to process input and output
+        data. This method takes a function and returns a new function that preprocesses
+        the input using the `pack_x` method, invokes the original function, and then
+        postprocesses the output using the `unpack_y` method.
+
+        :param fn: The function to be wrapped.
+        :param args: Positional arguments to be passed to the wrapped function.
+        :param kwargs: Keyword arguments to be passed to the wrapped function.
+        :return: A new function that preprocesses input, processes it via the wrapped
+                 function, and postprocesses the output.
+        """
         def wrapper(input):
             X = self.pack_x(input)
             Y = fn(X, *args, **kwargs)
@@ -649,17 +669,16 @@ class ThetassFNNAdapter(BaseFNNAdapter):
     Utility class for encoding/decoding data for FNN that predicts thetass2.
     """
 
-    def __init__(self, tau, ts):
-        self.tau = tau
-        self.ts = ts
-
     def pack_x(self, spm_state):
         iapp = spm_state['iapp']
         delta = iir_1p(iapp, self.tau, self.ts)
         thetass = spm_state['thetass']
         thetas_avg = spm_state['thetas_avg']
 
-        x = np.stack((thetass, thetas_avg, delta), axis=-1)
+        if self.include_delta:
+            x = np.stack((thetass, thetas_avg, delta), axis=-1)
+        else:
+            x = np.stack((thetass, thetas_avg), axis=-1)
 
         return x
 
@@ -669,7 +688,10 @@ class ThetassFNNAdapter(BaseFNNAdapter):
         return y
 
     def unpack_y(self, y: np.ndarray):
-        thetass2, = [np.squeeze(a) for a in np.split(y, y.shape[-1], axis=-1)]
+        if y.ndim == 1:
+            thetass2 = y
+        else:
+            thetass2, = [np.squeeze(a) for a in np.split(y, y.shape[-1], axis=-1)]
         thetass2 = np.clip(thetass2, 0, 1)
         return {
             'thetass2': thetass2,
@@ -681,10 +703,6 @@ class PhieFNNAdapter(BaseFNNAdapter):
     Utility class for encoding/decoding data for FNN that predicts phie2.
     """
 
-    def __init__(self, tau, ts):
-        self.tau = tau
-        self.ts = ts
-
     def pack_x(self, spm_state):
         iapp = spm_state['iapp']
         delta = iir_1p(iapp, self.tau, self.ts)
@@ -692,7 +710,10 @@ class PhieFNNAdapter(BaseFNNAdapter):
         thetae2 = spm_state['thetae2']
         thetass = spm_state['thetass']
         thetas_avg = spm_state['thetas_avg']
-        x = np.stack((thetae0, thetae2, thetass, thetas_avg, iapp, delta), axis=-1)
+        if self.include_delta:
+            x = np.stack((thetae0, thetae2, thetass, thetas_avg, iapp, delta), axis=-1)
+        else:
+            x = np.stack((thetae0, thetae2, thetass, thetas_avg, iapp), axis=-1)
         return x
 
     def pack_y(self, ground_truth):
@@ -701,7 +722,10 @@ class PhieFNNAdapter(BaseFNNAdapter):
         return y
 
     def unpack_y(self, y: np.ndarray):
-        phie2, = [np.squeeze(a) for a in np.split(y, y.shape[-1], axis=-1)]
+        if y.ndim == 1:
+            phie2 = y
+        else:
+            phie2, = [np.squeeze(a) for a in np.split(y, y.shape[-1], axis=-1)]
         return {
             'phie2': phie2,
         }
@@ -712,10 +736,6 @@ class IfFNNAdapter(BaseFNNAdapter):
     Utility class for encoding/decoding data for FNN that predicts phie2.
     """
 
-    def __init__(self, tau, ts):
-        self.tau = tau
-        self.ts = ts
-
     def pack_x(self, spm_state):
         iapp = spm_state['iapp']
         delta = iir_1p(iapp, self.tau, self.ts)
@@ -723,7 +743,10 @@ class IfFNNAdapter(BaseFNNAdapter):
         thetae2 = spm_state['thetae2']
         thetass = spm_state['thetass']
         thetas_avg = spm_state['thetas_avg']
-        x = np.stack((thetae0, thetae2, thetass, thetas_avg, iapp, delta), axis=-1)
+        if self.include_delta:
+            x = np.stack((thetae0, thetae2, thetass, thetas_avg, iapp, delta), axis=-1)
+        else:
+            x = np.stack((thetae0, thetae2, thetass, thetas_avg, iapp), axis=-1)
         return x
 
     def pack_y(self, ground_truth):
@@ -732,7 +755,10 @@ class IfFNNAdapter(BaseFNNAdapter):
         return y
 
     def unpack_y(self, y: np.ndarray):
-        if2, = [np.squeeze(a) for a in np.split(y, y.shape[-1], axis=-1)]
+        if y.ndim == 1:
+            if2 = y
+        else:
+            if2, = [np.squeeze(a) for a in np.split(y, y.shape[-1], axis=-1)]
         return {
             'if2': if2,
         }
@@ -743,10 +769,6 @@ class IfPhieFNNAdapter(BaseFNNAdapter):
     Utility class for encoding/decoding data for FNN that predicts if2 and phie2.
     """
 
-    def __init__(self, tau, ts):
-        self.tau = tau
-        self.ts = ts
-
     def pack_x(self, spm_state):
         iapp = spm_state['iapp']
         delta = iir_1p(iapp, self.tau, self.ts)
@@ -754,7 +776,10 @@ class IfPhieFNNAdapter(BaseFNNAdapter):
         thetae2 = spm_state['thetae2']
         thetass = spm_state['thetass']
         thetas_avg = spm_state['thetas_avg']
-        x = np.stack((thetae0, thetae2, thetass, thetas_avg, iapp, delta), axis=-1)
+        if self.include_delta:
+            x = np.stack((thetae0, thetae2, thetass, thetas_avg, iapp, delta), axis=-1)
+        else:
+            x = np.stack((thetae0, thetae2, thetass, thetas_avg, iapp), axis=-1)
         return x
 
     def pack_y(self, ground_truth):
