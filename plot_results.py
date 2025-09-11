@@ -24,12 +24,18 @@ if __name__ == "__main__":
     normalizer_thetass = data['datasets']['bulk_train']['thetass']['norm']
     normalizer_phie = data['datasets']['bulk_train']['phie']['norm']
     normalizer_if = data['datasets']['bulk_train']['if']['norm']
+    normalizer_thetass_mtau = data['datasets']['bulk_train']['thetass_mtau']['norm']
+    normalizer_phie_mtau = data['datasets']['bulk_train']['phie_mtau']['norm']
+    normalizer_if_mtau = data['datasets']['bulk_train']['if_mtau']['norm']
     normalizer_thetass_without_delta = data['datasets']['bulk_train']['thetass_without_delta']['norm']
     normalizer_phie_without_delta = data['datasets']['bulk_train']['phie_without_delta']['norm']
     normalizer_if_without_delta = data['datasets']['bulk_train']['if_without_delta']['norm']
     adapter_thetass = data['fnn_adapter_dict']['thetass']
     adapter_phie = data['fnn_adapter_dict']['phie']
     adapter_if = data['fnn_adapter_dict']['if']
+    adapter_thetass_mtau = data['fnn_adapter_dict']['thetass_mtau']
+    adapter_phie_mtau = data['fnn_adapter_dict']['phie_mtau']
+    adapter_if_mtau = data['fnn_adapter_dict']['if_mtau']
     adapter_thetass_without_delta = data['fnn_adapter_dict']['thetass_without_delta']
     adapter_phie_without_delta = data['fnn_adapter_dict']['phie_without_delta']
     adapter_if_without_delta = data['fnn_adapter_dict']['if_without_delta']
@@ -40,6 +46,9 @@ if __name__ == "__main__":
     fnn_thetass = tf.keras.models.load_model(os.path.join('trained_models', 'thetass_25degC.keras'))
     fnn_phie = tf.keras.models.load_model(os.path.join('trained_models', 'phie_25degC.keras'))
     fnn_if = tf.keras.models.load_model(os.path.join('trained_models', 'if_25degC.keras'))
+    fnn_thetass_mtau = tf.keras.models.load_model(os.path.join('trained_models', 'thetass_mtau_25degC.keras'))
+    fnn_phie_mtau = tf.keras.models.load_model(os.path.join('trained_models', 'phie_mtau_25degC.keras'))
+    fnn_if_mtau = tf.keras.models.load_model(os.path.join('trained_models', 'if_mtau_25degC.keras'))
     fnn_thetass_without_delta = tf.keras.models.load_model(os.path.join('trained_models', 'thetass_without_delta_25degC.keras'))
     fnn_phie_without_delta = tf.keras.models.load_model(os.path.join('trained_models', 'phie_without_delta_25degC.keras'))
     fnn_if_without_delta = tf.keras.models.load_model(os.path.join('trained_models', 'if_without_delta_25degC.keras'))
@@ -51,6 +60,15 @@ if __name__ == "__main__":
         **predict_thetass(spme_state),
         **predict_phie(spme_state),
         **predict_if(spme_state)
+    }
+
+    predict_thetass_mtau = adapter_thetass_mtau.wrap(normalizer_thetass_mtau.wrap(fnn_thetass_mtau))
+    predict_phie_mtau = adapter_phie_mtau.wrap(normalizer_phie_mtau.wrap(fnn_phie_mtau))
+    predict_if_mtau = adapter_if_mtau.wrap(normalizer_if_mtau.wrap(fnn_if_mtau))
+    predict_mtau = lambda spme_state: {
+        **predict_thetass_mtau(spme_state),
+        **predict_phie_mtau(spme_state),
+        **predict_if_mtau(spme_state)
     }
 
     predict_thetass_without_delta = adapter_thetass_without_delta.wrap(
@@ -79,16 +97,20 @@ if __name__ == "__main__":
         spec_labels = []
         rmse_vcell_spme = []
         rmse_vcell_hybrid = []
+        rmse_vcell_hybrid_mtau = []
         rmse_vcell_hybrid_without_delta = []
         rmse_vcell_rom = []
         rmse_phie2_spme = []
         rmse_phie2_hybrid = []
+        rmse_phie2_hybrid_mtau = []
         rmse_phie2_hybrid_without_delta = []
         rmse_if2_spme = []
         rmse_if2_hybrid = []
+        rmse_if2_hybrid_mtau = []
         rmse_if2_hybrid_without_delta = []
         rmse_thetass2_spme = []
         rmse_thetass2_hybrid = []
+        rmse_thetass2_hybrid_mtau = []
         rmse_thetass2_hybrid_without_delta = []
         for series_key, series in dataset.items():    # cc, gitt, drive
             for sim_data in series:
@@ -104,6 +126,11 @@ if __name__ == "__main__":
                     sim_data['soc0'],
                     correction_fn=predict
                 )
+                hybrid_sim_mtau = spme.run(
+                    iapp,
+                    sim_data['soc0'],
+                    correction_fn=predict_mtau
+                )
                 hybrid_sim_without_delta = spme.run(
                     iapp,
                     sim_data['soc0'],
@@ -112,21 +139,25 @@ if __name__ == "__main__":
 
                 thetass2_true = sim_data['pybamm']['thetass2']
                 thetass2_hybrid = hybrid_sim.thetass
+                thetass2_hybrid_mtau = hybrid_sim_mtau.thetass
                 thetass2_hybrid_without_delta = hybrid_sim_without_delta.thetass
                 thetass2_spme = plain_sim.thetass
 
                 phie2_true = sim_data['pybamm']['phie2']
                 phie2_hybrid = hybrid_sim.phie2
+                phie2_hybrid_mtau = hybrid_sim_mtau.phie2
                 phie2_hybrid_without_delta = hybrid_sim_without_delta.phie2
                 phie2_spme = plain_sim.phie2
 
                 if2_true = sim_data['pybamm']['if2']
                 if2_hybrid = hybrid_sim.pos_if
+                if2_hybrid_mtau = hybrid_sim_mtau.pos_if
                 if2_hybrid_without_delta = hybrid_sim_without_delta.pos_if
                 if2_spme = plain_sim.pos_if
 
                 vcell_true = sim_data['pybamm']['vcell']
                 vcell_hybrid = hybrid_sim.vcell
+                vcell_hybrid_mtau = hybrid_sim_mtau.vcell
                 vcell_hybrid_without_delta = hybrid_sim_without_delta.vcell
                 vcell_spme = plain_sim.vcell
 
@@ -138,19 +169,23 @@ if __name__ == "__main__":
                 spec_labels.append(spec_string)
                 rmse_vcell_spme.append(1000*np.sqrt(np.mean((vcell_true[ind] - vcell_spme[ind])**2, axis=0)))
                 rmse_vcell_hybrid.append(1000*np.sqrt(np.mean((vcell_true[ind] - vcell_hybrid[ind])**2, axis=0)))
+                rmse_vcell_hybrid_mtau.append(1000 * np.sqrt(np.mean((vcell_true[ind] - vcell_hybrid_mtau[ind]) ** 2, axis=0)))
                 rmse_vcell_hybrid_without_delta.append(1000*np.sqrt(np.mean((vcell_true[ind] - vcell_hybrid_without_delta[ind])**2, axis=0)))
                 rmse_phie2_spme.append(1000*np.sqrt(np.mean((phie2_true - phie2_spme)**2, axis=0)))
                 rmse_phie2_hybrid.append(1000*np.sqrt(np.mean((phie2_true - phie2_hybrid)**2, axis=0)))
+                rmse_phie2_hybrid_mtau.append(1000 * np.sqrt(np.mean((phie2_true - phie2_hybrid_mtau) ** 2, axis=0)))
                 rmse_phie2_hybrid_without_delta.append(1000*np.sqrt(np.mean((phie2_true - phie2_hybrid_without_delta)**2, axis=0)))
                 rmse_if2_spme.append(1000*np.sqrt(np.mean((if2_true - if2_spme)**2, axis=0)))
                 rmse_if2_hybrid.append(1000*np.sqrt(np.mean((if2_true - if2_hybrid)**2, axis=0)))
+                rmse_if2_hybrid_mtau.append(1000 * np.sqrt(np.mean((if2_true - if2_hybrid_mtau) ** 2, axis=0)))
                 rmse_if2_hybrid_without_delta.append(1000*np.sqrt(np.mean((if2_true - if2_hybrid_without_delta)**2, axis=0)))
                 rmse_thetass2_spme.append(1000*np.sqrt(np.mean((thetass2_true - thetass2_spme)**2, axis=0)))
                 rmse_thetass2_hybrid.append(1000*np.sqrt(np.mean((thetass2_true - thetass2_hybrid)**2,axis=0)))
+                rmse_thetass2_hybrid_mtau.append(1000 * np.sqrt(np.mean((thetass2_true - thetass2_hybrid_mtau) ** 2, axis=0)))
                 rmse_thetass2_hybrid_without_delta.append(1000*np.sqrt(np.mean((thetass2_true - thetass2_hybrid_without_delta)**2,axis=0)))
 
                 print(f"{dataset_key} {series_key} {spec_string}: {rmse_vcell_spme[-1]:.4f}mV -> "
-                      f" {rmse_vcell_hybrid[-1]:.4f}mV RMSE")
+                      f" {rmse_vcell_hybrid[-1]:.4f} / {rmse_vcell_hybrid_mtau[-1]:.4f}mV RMSE")
 
                 # Compare to ROM if available.
                 compare_file = os.path.join('MATLAB', "ROMSIM", f"{dataset_key}_{series_key}_{spec_string}.mat")
@@ -183,10 +218,11 @@ if __name__ == "__main__":
                 #ax.set_facecolor('white')
                 ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:.2f}'))
                 ax.set_box_aspect(1 / scipy.constants.golden)
-                plt.plot(time[time_ind], thetass2_true[time_ind], label=f'Newman', zorder=9)
-                plt.plot(time[time_ind], thetass2_hybrid[time_ind], '--', label=f'PIML', zorder=10)
-                plt.plot(time[time_ind], thetass2_hybrid_without_delta[time_ind], ':', label=f'PIML (w/o $\\delta$)', zorder=11)
+                plt.plot(time[time_ind], thetass2_true[time_ind], label=f'Newman')
                 plt.plot(time[time_ind], thetass2_spme[time_ind], label=f'SPMe')
+                plt.plot(time[time_ind], thetass2_hybrid_without_delta[time_ind], ':', label=f'PIML ($n_\\delta=0$)')
+                plt.plot(time[time_ind], thetass2_hybrid[time_ind], ':', label=f'PIML ($n_\\delta=1$)')
+                plt.plot(time[time_ind], thetass2_hybrid_mtau[time_ind], ':', label=f'PIML ($n_\\delta=3$)')
                 plt.xlabel(r'Time [s]')
                 plt.ylabel(r'$\theta_\mathrm{ss}(\tilde{x}=2)$')
                 plt.title(r'$\theta_\mathrm{ss}(\tilde{x}=2)$: ' f"{dataset_key.capitalize()} {spec_string}"
@@ -201,10 +237,11 @@ if __name__ == "__main__":
                 #ax.set_facecolor('white')
                 ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:.0f}'))
                 ax.set_box_aspect(1 / scipy.constants.golden)
-                plt.plot(time[time_ind], 1000*phie2_true[time_ind], label=f'Newman', zorder=9)
-                plt.plot(time[time_ind], 1000*phie2_hybrid[time_ind], '--', label=f'PIML', zorder=10)
-                plt.plot(time[time_ind], 1000*phie2_hybrid_without_delta[time_ind], ':', label=f'PIML (w/o $\\delta$)', zorder=11)
+                plt.plot(time[time_ind], 1000*phie2_true[time_ind], label=f'Newman')
                 plt.plot(time[time_ind], 1000*phie2_spme[time_ind], label=f'SPMe')
+                plt.plot(time[time_ind], 1000*phie2_hybrid_without_delta[time_ind], ':', label=f'PIML ($n_\\delta=0$)')
+                plt.plot(time[time_ind], 1000*phie2_hybrid[time_ind], ':', label=f'PIML ($n_\\delta=1$)')
+                plt.plot(time[time_ind], 1000*phie2_hybrid_mtau[time_ind], ':', label=f'PIML ($n_\\delta=3$)')
                 plt.xlabel(r'Time [s]')
                 plt.ylabel(r'$\phi_\mathrm{e}(\tilde{x}=2)$ [mV]')
                 plt.title(r'$\phi_\mathrm{e}(\tilde{x}=2)$: ' f"{dataset_key.capitalize()} {spec_string}"
@@ -219,10 +256,11 @@ if __name__ == "__main__":
                 #ax.set_facecolor('white')
                 ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:.1f}'))
                 ax.set_box_aspect(1 / scipy.constants.golden)
-                plt.plot(time[time_ind], if2_true[time_ind], label=f'Newman', zorder=9)
-                plt.plot(time[time_ind], if2_hybrid[time_ind], '--', label=f'PIML', zorder=10)
-                plt.plot(time[time_ind], if2_hybrid_without_delta[time_ind], ':', label=f'PIML (w/o $\\delta$)', zorder=11)
+                plt.plot(time[time_ind], if2_true[time_ind], label=f'Newman')
                 plt.plot(time[time_ind], if2_spme[time_ind], label=f'SPMe')
+                plt.plot(time[time_ind], if2_hybrid_without_delta[time_ind], ':', label=f'PIML ($n_\\delta=0$)')
+                plt.plot(time[time_ind], if2_hybrid[time_ind], ':', label=f'PIML ($n_\\delta=1$)')
+                plt.plot(time[time_ind], if2_hybrid_mtau[time_ind], ':', label=f'PIML ($n_\\delta=3$)')
                 plt.xlabel(r'Time [s]')
                 plt.ylabel(r'$i_\mathrm{f}(\tilde{x}=2)$ [A]')
                 plt.title(r'$i_\mathrm{f}(\tilde{x}=2)$: ' f"{dataset_key.capitalize()} {spec_string}"
@@ -237,10 +275,11 @@ if __name__ == "__main__":
                 #ax.set_facecolor('white')
                 ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:.2f}'))
                 ax.set_box_aspect(1 / scipy.constants.golden)
-                plt.plot(time[time_ind]/60, vcell_true[time_ind], label=f'Newman', zorder=9)
-                plt.plot(time[time_ind]/60, vcell_hybrid[time_ind], '--', label=f'PIML', zorder=10)
-                plt.plot(time[time_ind]/60, vcell_hybrid_without_delta[time_ind], ':', label=f'PIML (w/o $\\delta$)', zorder=11)
-                plt.plot(time[time_ind]/60, vcell_spme[time_ind], label=f'SPMe')
+                plt.plot(time[time_ind], vcell_true[time_ind], label=f'Newman')
+                plt.plot(time[time_ind], vcell_spme[time_ind], label=f'SPMe')
+                plt.plot(time[time_ind], vcell_hybrid_without_delta[time_ind], ':', label=f'PIML ($n_\\delta=0$)')
+                plt.plot(time[time_ind], vcell_hybrid[time_ind], ':', label=f'PIML ($n_\\delta=1$)')
+                plt.plot(time[time_ind], vcell_hybrid_mtau[time_ind], ':', label=f'PIML ($n_\\delta=3$)')
                 if compare_rom:
                     plt.plot(time[time_ind]/60, vcell_rom[time_ind], label=f'HRA/outBlend')
                 plt.xlabel(r'Time, $t$ [min]')
@@ -260,18 +299,26 @@ if __name__ == "__main__":
         metrics = pd.DataFrame({
             'series': series_labels,
             'spec': spec_labels,
-            'rmse_vcell_spme [mV]': rmse_vcell_spme,
-            'rmse_vcell_hybrid [mV]': rmse_vcell_hybrid,
-            'rmse_vcell_hybrid_without_delta [mV]': rmse_vcell_hybrid_without_delta,
-            'rmse_vcell_rom [mV]': rmse_vcell_rom,
+            # SPMe
             'rmse_thetass2_spme [milli]': rmse_thetass2_spme,
-            'rmse_thetass2_hybrid [milli]': rmse_thetass2_hybrid,
-            'rmse_thetass2_hybrid_without_delta [milli]': rmse_thetass2_hybrid_without_delta,
             'rmse_phie2_spme [mV]': rmse_phie2_spme,
-            'rmse_phie2_hybrid [mV]': rmse_phie2_hybrid,
-            'rmse_phie2_hybrid_without_delta [mV]': rmse_phie2_hybrid_without_delta,
             'rmse_if2_spme [mA]': rmse_if2_spme,
-            'rmse_if2_hybrid [mA]': rmse_if2_hybrid,
+            'rmse_vcell_spme [mV]': rmse_vcell_spme,
+            # PIML n_delta = 0
+            'rmse_thetass2_hybrid_without_delta [milli]': rmse_thetass2_hybrid_without_delta,
+            'rmse_phie2_hybrid_without_delta [mV]': rmse_phie2_hybrid_without_delta,
             'rmse_if2_hybrid_without_delta [mA]': rmse_if2_hybrid_without_delta,
+            'rmse_vcell_hybrid_without_delta [mV]': rmse_vcell_hybrid_without_delta,
+            # PIML n_delta = 1
+            'rmse_thetass2_hybrid [milli]': rmse_thetass2_hybrid,
+            'rmse_phie2_hybrid [mV]': rmse_phie2_hybrid,
+            'rmse_if2_hybrid [mA]': rmse_if2_hybrid,
+            'rmse_vcell_hybrid [mV]': rmse_vcell_hybrid,
+            # PIML n_delta = 3
+            'rmse_thetass2_hybrid_mtau [milli]': rmse_thetass2_hybrid_mtau,
+            'rmse_phie2_hybrid_mtau [mV]': rmse_phie2_hybrid_mtau,
+            'rmse_if2_hybrid_mtau [mA]': rmse_if2_hybrid_mtau,
+            'rmse_vcell_hybrid_mtau [mV]': rmse_vcell_hybrid_mtau,
+            'rmse_vcell_rom [mV]': rmse_vcell_rom,
         })
         metrics.to_excel(os.path.join(data_dir, 'metrics.xlsx'))

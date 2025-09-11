@@ -17,6 +17,11 @@ if __name__ == "__main__":
 
     # Build and train models.
     for fnn_label in data['fnn_adapter_dict']:
+        if not fnn_label.endswith('_mtau'):
+            continue
+        # if fnn_label.startswith('thetass'):
+        #     continue
+
         X_train = data['datasets']['bulk_train'][fnn_label]['X']
         Y_train = data['datasets']['bulk_train'][fnn_label]['Y']
         X_test = data['datasets']['bulk_test'][fnn_label]['X']
@@ -26,7 +31,16 @@ if __name__ == "__main__":
 
         # Build model.
         n_hidden_nodes = 32 if fnn_label.startswith('thetass') else 128
-        n_layers = 3 if fnn_label.startswith('thetas') else 5
+        n_layers = 3 if fnn_label.startswith('thetass') else 5
+        n_epochs = 1000
+        # if fnn_label.endswith('_mtau'):
+        #     n_hidden_nodes = 32 if fnn_label.startswith('thetass') else 64
+        #     n_layers = 3
+        #     n_epochs = 1000
+        # else:
+        #     n_hidden_nodes = 32 if fnn_label.startswith('thetass') else 128
+        #     n_layers = 3 if fnn_label.startswith('thetass') else 5
+        #     n_epochs = 1000
         model = Sequential(name='FNN')
         model.add(Input(shape=(n_input,), name='input'))
         for k in range(n_layers):
@@ -36,7 +50,12 @@ if __name__ == "__main__":
         model.summary()
 
         # Train model.
-        model.fit(X_train, Y_train, batch_size=1024, epochs=1_000, validation_data=(X_test, Y_test))
+        model.fit(
+            X_train, Y_train,
+            batch_size=1024,
+            epochs=n_epochs,
+            validation_data=(X_test, Y_test)
+        )
 
         # Save trained model.
         model.save(os.path.join("trained_models", f"{fnn_label}_25degC.keras"))

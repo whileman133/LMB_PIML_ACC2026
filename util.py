@@ -627,9 +627,18 @@ def sim_specs(series_key, sim_data):
 
 class BaseFNNAdapter(ABC):
     def __init__(self, tau, ts, include_delta=True):
+        if not isinstance(tau, (list, tuple, np.ndarray)):
+            tau = [tau]
         self.tau = tau
         self.ts = ts
         self.include_delta = include_delta
+
+    def get_delta(self, iapp):
+        delta_shape = len(self.tau), len(iapp)
+        delta = np.zeros(delta_shape)
+        for idx, tau in enumerate(self.tau):
+            delta[idx,:] = iir_1p(iapp, tau, self.ts)
+        return delta
 
     @abstractmethod
     def pack_x(self, *args, **kwargs):
@@ -671,20 +680,20 @@ class ThetassFNNAdapter(BaseFNNAdapter):
 
     def pack_x(self, spm_state):
         iapp = spm_state['iapp']
-        delta = iir_1p(iapp, self.tau, self.ts)
+        delta = self.get_delta(iapp)
         thetass = spm_state['thetass']
         thetas_avg = spm_state['thetas_avg']
 
         if self.include_delta:
-            x = np.stack((thetass, thetas_avg, delta), axis=-1)
+            x = np.vstack((thetass, thetas_avg, delta)).transpose()
         else:
-            x = np.stack((thetass, thetas_avg), axis=-1)
+            x = np.vstack((thetass, thetas_avg)).transpose()
 
         return x
 
     def pack_y(self, ground_truth):
         thetass2_true = ground_truth['thetass2']
-        y = np.stack((thetass2_true,), axis=-1)
+        y = np.stack((thetass2_true,), axis=-1)  # make column vector
         return y
 
     def unpack_y(self, y: np.ndarray):
@@ -705,15 +714,15 @@ class PhieFNNAdapter(BaseFNNAdapter):
 
     def pack_x(self, spm_state):
         iapp = spm_state['iapp']
-        delta = iir_1p(iapp, self.tau, self.ts)
+        delta = self.get_delta(iapp)
         thetae0 = spm_state['thetae0']
         thetae2 = spm_state['thetae2']
         thetass = spm_state['thetass']
         thetas_avg = spm_state['thetas_avg']
         if self.include_delta:
-            x = np.stack((thetae0, thetae2, thetass, thetas_avg, iapp, delta), axis=-1)
+            x = np.vstack((thetae0, thetae2, thetass, thetas_avg, iapp, delta)).transpose()
         else:
-            x = np.stack((thetae0, thetae2, thetass, thetas_avg, iapp), axis=-1)
+            x = np.vstack((thetae0, thetae2, thetass, thetas_avg, iapp)).transpose()
         return x
 
     def pack_y(self, ground_truth):
@@ -738,15 +747,15 @@ class IfFNNAdapter(BaseFNNAdapter):
 
     def pack_x(self, spm_state):
         iapp = spm_state['iapp']
-        delta = iir_1p(iapp, self.tau, self.ts)
+        delta = self.get_delta(iapp)
         thetae0 = spm_state['thetae0']
         thetae2 = spm_state['thetae2']
         thetass = spm_state['thetass']
         thetas_avg = spm_state['thetas_avg']
         if self.include_delta:
-            x = np.stack((thetae0, thetae2, thetass, thetas_avg, iapp, delta), axis=-1)
+            x = np.vstack((thetae0, thetae2, thetass, thetas_avg, iapp, delta)).transpose()
         else:
-            x = np.stack((thetae0, thetae2, thetass, thetas_avg, iapp), axis=-1)
+            x = np.vstack((thetae0, thetae2, thetass, thetas_avg, iapp)).transpose()
         return x
 
     def pack_y(self, ground_truth):

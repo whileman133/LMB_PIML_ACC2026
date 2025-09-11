@@ -20,18 +20,23 @@ if __name__ == '__main__':
         data = pickle.load(f)
 
     # Define constants.
-    tau = 410
+    tau0 = 410
+    tau_vect = [32.95, 164.4, 386.3]
     ts = data['ts']
 
     # Data I/O adapters.
     fnn_adapter_dict = {
-        'thetass': util.ThetassFNNAdapter(tau, ts),
-        'phie': util.PhieFNNAdapter(tau, ts),
-        'if': util.IfFNNAdapter(tau, ts),
+        'thetass': util.ThetassFNNAdapter(tau0, ts),
+        'phie': util.PhieFNNAdapter(tau0, ts),
+        'if': util.IfFNNAdapter(tau0, ts),
+        # FNNs to be trained on multiple IIR filters.
+        'thetass_mtau': util.ThetassFNNAdapter(tau_vect, ts),
+        'phie_mtau': util.PhieFNNAdapter(tau_vect, ts),
+        'if_mtau': util.IfFNNAdapter(tau_vect, ts),
         # FNNs to be trained without single-pole filter output.
-        'thetass_without_delta': util.ThetassFNNAdapter(tau, ts, include_delta=False),
-        'phie_without_delta': util.PhieFNNAdapter(tau, ts, include_delta=False),
-        'if_without_delta': util.IfFNNAdapter(tau, ts, include_delta=False),
+        'thetass_without_delta': util.ThetassFNNAdapter(tau0, ts, include_delta=False),
+        'phie_without_delta': util.PhieFNNAdapter(tau0, ts, include_delta=False),
+        'if_without_delta': util.IfFNNAdapter(tau0, ts, include_delta=False),
     }
 
     # Prepare training data --------------------------------------------------------------------------------------------
@@ -96,7 +101,7 @@ if __name__ == '__main__':
         }
 
     # Save simulation data to a file.
-    data['tau'] = tau
+    data['tau'] = tau0
     data['fnn_adapter_dict'] = fnn_adapter_dict
     with open(os.path.join('datasets', 'TrainTest_25degC.pickle'), "wb") as f:
         pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
